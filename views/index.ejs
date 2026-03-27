@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NestJS on Zerops</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+    .card { background: #1e293b; border-radius: 12px; padding: 2.5rem; max-width: 480px; width: 90%; box-shadow: 0 4px 24px rgba(0,0,0,0.3); }
+    h1 { font-size: 1.75rem; margin-bottom: 1.5rem; color: #f1f5f9; }
+    .status { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; font-size: 0.95rem; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot.ok { background: #22c55e; }
+    .dot.err { background: #ef4444; }
+    .greeting { background: #334155; border-radius: 8px; padding: 1rem; margin: 1.25rem 0; font-size: 1.1rem; text-align: center; color: #94a3b8; }
+    .meta { color: #64748b; font-size: 0.8rem; margin-top: 1.25rem; }
+    .meta span { display: block; margin-bottom: 0.25rem; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>NestJS on Zerops</h1>
+    <div class="status">
+      <span class="dot <%= dbHealthy ? 'ok' : 'err' %>"></span>
+      PostgreSQL: <%= dbHealthy ? 'Connected' : 'Disconnected' %>
+    </div>
+    <div class="greeting">&ldquo;<%= greeting %>&rdquo;</div>
+    <div class="meta">
+      <span>Node.js <%= nodeVersion %> &middot; NestJS v<%= nestVersion %></span>
+      <span>Environment: <%= environment %></span>
+    </div>
+  </div>
+</body>
+</html>

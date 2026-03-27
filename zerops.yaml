@@ -1,0 +1,110 @@
+# yaml-language-server: $schema=https://api.app-prg1.zerops.io/api/rest/public/settings/zerops-yaml-json-schema.json
+
+# This app uses three setups:
+# 'base' — shared config inherited by prod and dev.
+# 'prod' — compiles TypeScript, deploys production bundle,
+#   runs TypeORM migrations on deploy, and serves via Node.js.
+# 'dev' — deploys full source into a development workspace;
+#   developer drives via SSH.
+zerops:
+  # Shared configuration — prevents duplication between
+  # prod and dev setups. Database credentials and port
+  # config are identical across both.
+  - setup: base
+    run:
+      base: nodejs@22
+      ports:
+        - port: 3000
+          httpSupport: true
+      envVariables:
+        # --- Database ---
+        # ${db_hostname}: Zerops injects the 'db' service
+        # hostname. Pattern: ${hostname_credential}.
+        DATABASE_HOST: ${db_hostname}
+        DATABASE_PORT: ${db_port}
+        DATABASE_NAME: ${db_dbName}
+        DATABASE_USERNAME: ${db_user}
+        DATABASE_PASSWORD: ${db_password}
+
+  - setup: prod
+    extends: base
+    build:
+      base: nodejs@22
+      buildCommands:
+        # Install all dependencies (dev included for TypeScript compiler)
+        - npm ci
+        # Compile TypeScript → dist/ via NestJS CLI
+        - npm run build
+        # Swap to production-only node_modules — reduces
+        # deployed artifact size by ~40%. The compiled JS
+        # in dist/ no longer needs TypeScript or dev tools.
+        - mv node_modules node_modules_dev
+        - npm ci --omit=dev
+      # Deploy compiled output + production deps only.
+      # NestJS compiles to CommonJS in dist/ — the full
+      # source tree is not needed at runtime.
+      deployFiles:
+        - dist
+        - node_modules
+        - package.json
+        - views
+      # node_modules is the largest artifact. Caching it
+      # avoids re-downloading on every push when only
+      # application code changed.
+      cache:
+        - node_modules
+        - package-lock.json
+    deploy:
+      # readinessCheck: Zerops polls /api/health before
+      # routing traffic to newly-deployed containers.
+      # If this fails, the deploy is aborted and the
+      # previous version keeps receiving traffic.
+      readinessCheck:
+        httpGet:
+          port: 3000
+          path: /api/health
+    run:
+      envVariables:
+        NODE_ENV: production
+      initCommands:
+        # zsc execOnce runs the migration exactly once per
+        # appVersionId — on multi-container deploys only one
+        # container executes this, the others wait.
+        # TypeORM CLI reads data-source.ts for connection config.
+        - zsc execOnce ${appVersionId} -- node -e "var ds=require('./dist/data-source').AppDataSource;ds.initialize().then(function(){return ds.runMigrations()}).then(function(){ds.destroy();process.exit(0)}).catch(function(e){console.error(e);process.exit(1)})"
+      start: node dist/main
+      # healthCheck: runs continuously on running containers.
+      # Zerops restarts the container if this check fails
+      # — catches runtime crashes after initial deploy.
+      healthCheck:
+        httpGet:
+          port: 3000
+          path: /api/health
+
+  - setup: dev
+    extends: base
+    build:
+      base: nodejs@22
+      # Dev build deploys full source without compiling —
+      # initCommands handles dep install after deploy.
+      buildCommands: []
+      deployFiles: ./
+      cache:
+        - node_modules
+        - package-lock.json
+    run:
+      envVariables:
+        NODE_ENV: development
+      initCommands:
+        # Temporarily add 0.5 GB RAM for npm install —
+        # dependency resolution is memory-intensive. RAM
+        # returns to normal after 10 minutes automatically.
+        - zsc scale ram +0.5GB 10m
+        # Install all deps (including dev tools for TypeScript)
+        # in the running container. Acceptable in dev because
+        # source-only deploy doesn't ship node_modules.
+        - npm install
+      # Container idles after init — developer connects via
+      # SSH and runs 'npm run start:dev' manually for
+      # hot-reload development.
+      start: zsc noop
