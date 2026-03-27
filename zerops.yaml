@@ -18,8 +18,9 @@ zerops:
           httpSupport: true
       envVariables:
         # --- Database ---
-        # ${db_hostname}: Zerops injects the 'db' service
-        # hostname. Pattern: ${hostname_credential}.
+        # Zerops provisions env vars for managed services automatically.
+        # ${db_hostname} resolves to the service's internal VXLAN address.
+        # Pattern: ${hostname_credential}.
         DATABASE_HOST: ${db_hostname}
         DATABASE_PORT: ${db_port}
         DATABASE_NAME: ${db_dbName}
@@ -55,7 +56,6 @@ zerops:
       # application code changed.
       cache:
         - node_modules
-        - package-lock.json
     deploy:
       # readinessCheck: Zerops polls /api/health before
       # routing traffic to newly-deployed containers.
@@ -72,7 +72,6 @@ zerops:
         # zsc execOnce runs the migration exactly once per
         # appVersionId — on multi-container deploys only one
         # container executes this, the others wait.
-        # TypeORM CLI reads data-source.ts for connection config.
         - zsc execOnce ${appVersionId} -- node -e "var ds=require('./dist/data-source').AppDataSource;ds.initialize().then(function(){return ds.runMigrations()}).then(function(){ds.destroy();process.exit(0)}).catch(function(e){console.error(e);process.exit(1)})"
       start: node dist/main
       # healthCheck: runs continuously on running containers.
@@ -93,7 +92,6 @@ zerops:
       deployFiles: ./
       cache:
         - node_modules
-        - package-lock.json
     run:
       envVariables:
         NODE_ENV: development
@@ -103,8 +101,7 @@ zerops:
         # returns to normal after 10 minutes automatically.
         - zsc scale ram +0.5GB 10m
         # Install all deps (including dev tools for TypeScript)
-        # in the running container. Acceptable in dev because
-        # source-only deploy doesn't ship node_modules.
+        # in the running container.
         - npm install
       # Container idles after init — developer connects via
       # SSH and runs 'npm run start:dev' manually for
