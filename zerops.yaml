@@ -1,33 +1,12 @@
 # yaml-language-server: $schema=https://api.app-prg1.zerops.io/api/rest/public/settings/zerops-yaml-json-schema.json
 
-# This app uses three setups:
-# 'base' — shared config inherited by prod and dev.
+# This app uses two setups:
 # 'prod' — compiles TypeScript, deploys production bundle,
 #   runs TypeORM migrations on deploy, and serves via Node.js.
 # 'dev' — deploys full source into a development workspace;
 #   developer drives via SSH.
 zerops:
-  # Shared configuration — prevents duplication between
-  # prod and dev setups. Database credentials and port
-  # config are identical across both.
-  - setup: base
-    run:
-      base: nodejs@22
-      ports:
-        - port: 3000
-          httpSupport: true
-      envVariables:
-        # --- Database ---
-        # ${db_hostname}: Zerops injects the 'db' service
-        # hostname. Pattern: ${hostname_credential}.
-        DATABASE_HOST: ${db_hostname}
-        DATABASE_PORT: ${db_port}
-        DATABASE_NAME: ${db_dbName}
-        DATABASE_USERNAME: ${db_user}
-        DATABASE_PASSWORD: ${db_password}
-
   - setup: prod
-    extends: base
     build:
       base: nodejs@22
       buildCommands:
@@ -55,7 +34,6 @@ zerops:
       # application code changed.
       cache:
         - node_modules
-        - package-lock.json
     deploy:
       # readinessCheck: Zerops polls /api/health before
       # routing traffic to newly-deployed containers.
@@ -66,13 +44,24 @@ zerops:
           port: 3000
           path: /api/health
     run:
+      base: nodejs@22
+      ports:
+        - port: 3000
+          httpSupport: true
       envVariables:
+        # --- Database ---
+        # ${db_hostname}: Zerops injects the 'db' service
+        # hostname. Pattern: ${hostname_credential}.
+        DATABASE_HOST: ${db_hostname}
+        DATABASE_PORT: ${db_port}
+        DATABASE_NAME: ${db_dbName}
+        DATABASE_USERNAME: ${db_user}
+        DATABASE_PASSWORD: ${db_password}
         NODE_ENV: production
       initCommands:
         # zsc execOnce runs the migration exactly once per
         # appVersionId — on multi-container deploys only one
         # container executes this, the others wait.
-        # TypeORM CLI reads data-source.ts for connection config.
         - zsc execOnce ${appVersionId} -- node -e "var ds=require('./dist/data-source').AppDataSource;ds.initialize().then(function(){return ds.runMigrations()}).then(function(){ds.destroy();process.exit(0)}).catch(function(e){console.error(e);process.exit(1)})"
       start: node dist/main
       # healthCheck: runs continuously on running containers.
@@ -84,7 +73,6 @@ zerops:
           path: /api/health
 
   - setup: dev
-    extends: base
     build:
       base: nodejs@22
       # Dev build deploys full source without compiling —
@@ -93,9 +81,17 @@ zerops:
       deployFiles: ./
       cache:
         - node_modules
-        - package-lock.json
     run:
+      base: nodejs@22
+      ports:
+        - port: 3000
+          httpSupport: true
       envVariables:
+        DATABASE_HOST: ${db_hostname}
+        DATABASE_PORT: ${db_port}
+        DATABASE_NAME: ${db_dbName}
+        DATABASE_USERNAME: ${db_user}
+        DATABASE_PASSWORD: ${db_password}
         NODE_ENV: development
       initCommands:
         # Temporarily add 0.5 GB RAM for npm install —
@@ -103,8 +99,7 @@ zerops:
         # returns to normal after 10 minutes automatically.
         - zsc scale ram +0.5GB 10m
         # Install all deps (including dev tools for TypeScript)
-        # in the running container. Acceptable in dev because
-        # source-only deploy doesn't ship node_modules.
+        # in the running container.
         - npm install
       # Container idles after init — developer connects via
       # SSH and runs 'npm run start:dev' manually for
