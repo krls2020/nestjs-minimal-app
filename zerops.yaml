@@ -26,10 +26,10 @@ zerops:
         - mv node_modules node_modules_dev
         - npm install --omit=dev
       deployFiles:
-        - ./dist
-        - ./node_modules
-        - ./package.json
-        - ./views
+        - dist
+        - node_modules
+        - package.json
+        - views
       cache:
         - node_modules
     deploy:
