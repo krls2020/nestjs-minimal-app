@@ -11,9 +11,8 @@ async function bootstrap() {
   // and protocol from X-Forwarded-* headers.
   app.set('trust proxy', true);
 
-  // EJS templates — views/ is at repo root, deployed alongside dist/.
-  // process.cwd() resolves to /var/www/ on Zerops at runtime.
-  app.setBaseViewsDir(join(process.cwd(), 'views'));
+  // EJS templates for the dashboard page
+  app.setBaseViewsDir(join(__dirname, 'views'));
   app.setViewEngine('ejs');
 
   const port = process.env.PORT || 3000;
