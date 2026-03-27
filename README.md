@@ -6,9 +6,9 @@ Minimal [NestJS](https://nestjs.com) application demonstrating framework-native 
 
 ## Deploy
 
-This app is part of the [NestJS Minimal](https://github.com/krls2020/zerops-recipes/tree/main/nestjs-minimal) recipe on Zerops.
+This app is part of the [NestJS Minimal](https://app.zerops.io/recipes/nestjs-minimal?environment=small-production) recipe on [Zerops](https://zerops.io).
 
-[![Deploy on Zerops](https://github.com/zeropsio/recipe-shared-assets/blob/main/deploy-button/deploy-button.svg?raw=true)](https://app.zerops.io/recipe/nestjs-minimal)
+[![Deploy on Zerops](https://github.com/zeropsio/recipe-shared-assets/blob/main/deploy-button/light/deploy-button.svg)](https://app.zerops.io/recipes/nestjs-minimal?environment=small-production)
 
 ## Endpoints
 
