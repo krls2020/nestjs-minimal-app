@@ -31,15 +31,17 @@ zerops:
     build:
       base: nodejs@22
       buildCommands:
-        # Install all dependencies (dev included for TypeScript compiler)
-        - npm ci
+        # Install all dependencies (dev included for TypeScript compiler).
+        # npm install (not npm ci) because recipe apps don't ship
+        # a lockfile — keeps the repo minimal.
+        - npm install
         # Compile TypeScript → dist/ via NestJS CLI
         - npm run build
         # Swap to production-only node_modules — reduces
         # deployed artifact size by ~40%. The compiled JS
         # in dist/ no longer needs TypeScript or dev tools.
         - mv node_modules node_modules_dev
-        - npm ci --omit=dev
+        - npm install --omit=dev
       # Deploy compiled output + production deps only.
       # NestJS compiles to CommonJS in dist/ — the full
       # source tree is not needed at runtime.

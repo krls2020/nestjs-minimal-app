@@ -16,6 +16,8 @@ async function bootstrap() {
   app.setViewEngine('ejs');
 
   const port = process.env.PORT || 3000;
-  await app.listen(port);
+  // Bind to 0.0.0.0 — required on Zerops. Localhost binding
+  // causes 502 because the L7 balancer can't reach the app.
+  await app.listen(port, '0.0.0.0');
 }
 bootstrap();
