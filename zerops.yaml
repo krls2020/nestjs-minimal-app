@@ -1,17 +1,85 @@
+# yaml-language-server: $schema=https://api.app-prg1.zerops.io/api/rest/public/settings/zerops-yaml-json-schema.json
+
+# This app uses two setups:
+# 'prod' — compiles TypeScript, deploys production bundle,
+#   runs TypeORM migrations on deploy, and serves via Node.js.
+# 'dev' — deploys full source into a development workspace;
+#   developer drives via SSH.
 zerops:
   - setup: prod
     build:
       base: nodejs@22
       buildCommands:
+        # Install all dependencies (dev included for TypeScript compiler).
+        # npm install (not npm ci) because recipe apps don't ship
+        # a lockfile — keeps the repo minimal.
         - npm install
+        # Compile TypeScript → dist/ via NestJS CLI
         - npm run build
+        # Swap to production-only node_modules — reduces
+        # deployed artifact size by ~40%. The compiled JS
+        # in dist/ no longer needs TypeScript or dev tools.
         - mv node_modules node_modules_dev
         - npm install --omit=dev
+      # Deploy compiled output + production deps only.
+      # NestJS compiles to CommonJS in dist/ — the full
+      # source tree is not needed at runtime.
       deployFiles:
         - ./dist
         - ./node_modules
         - ./package.json
         - ./views
+      # node_modules is the largest artifact. Caching it
+      # avoids re-downloading on every push when only
+      # application code changed.
+      cache:
+        - node_modules
+    deploy:
+      # readinessCheck: Zerops polls /api/health before
+      # routing traffic to newly-deployed containers.
+      # If this fails, the deploy is aborted and the
+      # previous version keeps receiving traffic.
+      readinessCheck:
+        httpGet:
+          port: 3000
+          path: /api/health
+    run:
+      base: nodejs@22
+      ports:
+        - port: 3000
+          httpSupport: true
+      envVariables:
+        # --- Database ---
+        # Zerops provisions env vars for managed services automatically.
+        # ${db_hostname} resolves to the service's internal VXLAN address.
+        # Pattern: ${hostname_credential}.
+        DATABASE_HOST: ${db_hostname}
+        DATABASE_PORT: ${db_port}
+        DATABASE_NAME: ${db_dbName}
+        DATABASE_USERNAME: ${db_user}
+        DATABASE_PASSWORD: ${db_password}
+        NODE_ENV: production
+      initCommands:
+        # zsc execOnce runs the migration exactly once per
+        # appVersionId — on multi-container deploys only one
+        # container executes this, the others wait.
+        - zsc execOnce ${appVersionId} -- node -e "var ds=require('./dist/data-source').AppDataSource;ds.initialize().then(function(){return ds.runMigrations()}).then(function(){ds.destroy();process.exit(0)}).catch(function(e){console.error(e);process.exit(1)})"
+      start: node dist/main
+      # healthCheck: runs continuously on running containers.
+      # Zerops restarts the container if this check fails
+      # — catches runtime crashes after initial deploy.
+      healthCheck:
+        httpGet:
+          port: 3000
+          path: /api/health
+
+  - setup: dev
+    build:
+      base: nodejs@22
+      # Dev build deploys full source without compiling —
+      # initCommands handles dep install after deploy.
+      buildCommands: []
+      deployFiles: ./
       cache:
         - node_modules
     run:
@@ -25,28 +93,16 @@ zerops:
         DATABASE_NAME: ${db_dbName}
         DATABASE_USERNAME: ${db_user}
         DATABASE_PASSWORD: ${db_password}
-        NODE_ENV: production
-      initCommands:
-        - zsc execOnce ${appVersionId} -- node -e "var ds=require('./dist/data-source').AppDataSource;ds.initialize().then(function(){return ds.runMigrations()}).then(function(){ds.destroy();process.exit(0)}).catch(function(e){console.error(e);process.exit(1)})"
-      start: node dist/main
-
-  - setup: dev
-    build:
-      base: nodejs@22
-      buildCommands: []
-      deployFiles: ./
-    run:
-      base: nodejs@22
-      ports:
-        - port: 3000
-          httpSupport: true
-      envVariables:
-        DATABASE_HOST: ${db_hostname}
-        DATABASE_PORT: ${db_port}
-        DATABASE_NAME: ${db_dbName}
-        DATABASE_USERNAME: ${db_user}
-        DATABASE_PASSWORD: ${db_password}
         NODE_ENV: development
       initCommands:
+        # Temporarily add 0.5 GB RAM for npm install —
+        # dependency resolution is memory-intensive. RAM
+        # returns to normal after 10 minutes automatically.
+        - zsc scale ram +0.5GB 10m
+        # Install all deps (including dev tools for TypeScript)
+        # in the running container.
         - npm install
+      # Container idles after init — developer connects via
+      # SSH and runs 'npm run start:dev' manually for
+      # hot-reload development.
       start: zsc noop
